@@ -2,6 +2,16 @@
 session_start();
 require_once __DIR__ . '/db.php';
 
+$isAdmin = false;
+try {
+  $db = get_db();
+  ensure_users_table($db);
+  $userId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+  $isAdmin = is_user_admin($db, $userId);
+} catch (Throwable $e) {
+  // Silently fail - user just won't see admin link
+}
+
 if (!isset($_SESSION['csrf'])) {
   $_SESSION['csrf'] = bin2hex(random_bytes(16));
 }
@@ -11,11 +21,7 @@ try {
   $db = get_db();
   ensure_users_table($db);
   
-  $userId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
-  if (!is_user_admin($db, $userId)) {
-    http_response_code(403);
-    die('Access denied. Admin privileges required.');
-  }
+
 } catch (Throwable $e) {
   http_response_code(500);
   die('Database error: ' . htmlspecialchars($e->getMessage()));
