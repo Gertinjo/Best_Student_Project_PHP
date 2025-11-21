@@ -1,36 +1,51 @@
 <?php
-include_once '../database/config.php'; // ← add this semicolon!
+include_once '../database/config.php';  // $pdo, csrf_token, csrf_check, session_start
+
+$companyName = 'BinGo';
 
 $errors = [];
-$old = ['email'=>''];
+$old = ['email' => ''];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  csrf_check();
-}
+    csrf_check();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  csrf_check();
+    $email = trim($_POST['email'] ?? '');
+    $pass  = $_POST['password'] ?? '';
+    $old['email'] = $email;
 
-  $email = trim($_POST['email'] ?? '');
-  $pass  = $_POST['password'] ?? '';
-  $old['email'] = $email;
-
-  if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Invalid email.';
-  if ($pass === '') $errors[] = 'Password is required.';
-
-  if (!$errors) {
-    $stmt = $pdo->prepare('SELECT id, name, email, password_hash FROM users WHERE email = ? LIMIT 1');
-    $stmt->execute([$email]);
-    $user = $stmt->fetch();
-    if (!$user || !password_verify($pass, $user['password_hash'])) {
-      $errors[] = 'Email or password is incorrect.';
-    } else {
-      // success
-      $_SESSION['user'] = ['id'=>(int)$user['id'], 'name'=>$user['name'], 'email'=>$user['email']];
-      header('Location: ../EcoTracker/index.php');
-      exit;
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'Invalid email.';
     }
-  }
+    if ($pass === '') {
+        $errors[] = 'Password is required.';
+    }
+
+    if (!$errors) {
+        // IMPORTANT: include is_admin here
+        $stmt = $pdo->prepare('
+            SELECT id, name, email, password_hash, is_admin
+            FROM users
+            WHERE email = ?
+            LIMIT 1
+        ');
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
+
+        if (!$user || !password_verify($pass, $user['password_hash'])) {
+            $errors[] = 'Email or password is incorrect.';
+        } else {
+            // store full user info into session
+            $_SESSION['user'] = [
+                'id'       => (int)$user['id'],
+                'name'     => $user['name'],
+                'email'    => $user['email'],
+                'is_admin' => (int)$user['is_admin'],  // <-- THIS IS THE KEY
+            ];
+
+            header('Location: ../EcoTracker/index.php');
+            exit;
+        }
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -48,18 +63,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     button{margin-top:14px;width:100%;padding:12px;border:0;border-radius:10px;background:#16a34a;color:#fff;font-weight:700;cursor:pointer}
     .muted{margin-top:10px;color:#6b7280}
     a{color:#2563eb;text-decoration:none}
+    .brand{font-size:14px;color:#6b7280;margin-bottom:8px}
   </style>
 </head>
 <body>
   <div class="wrap">
+    <div class="brand">Company name is: <strong><?= htmlspecialchars($companyName) ?></strong></div>
     <h1>Welcome back</h1>
+
     <?php if ($errors): ?>
       <div class="error">
         <?php foreach($errors as $e) echo htmlspecialchars($e)."<br>"; ?>
       </div>
     <?php endif; ?>
+
     <form method="post">
       <input type="hidden" name="csrf" value="<?= htmlspecialchars(csrf_token(), ENT_QUOTES) ?>">
+
       <label for="email">Email</label>
       <input id="email" type="email" name="email" value="<?= htmlspecialchars($old['email'], ENT_QUOTES) ?>" required>
 
@@ -68,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <button type="submit">Log In</button>
     </form>
+
     <p class="muted">No account? <a href="signup.php">Create one</a></p>
   </div>
 </body>

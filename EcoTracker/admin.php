@@ -1,32 +1,41 @@
 <?php
-session_start();
-require_once __DIR__ . '/db.php';
+// admin.php
 
-$isAdmin = false;
-try {
-  $db = get_db();
-  ensure_users_table($db);
-  $userId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
-  $isAdmin = is_user_admin($db, $userId);
-} catch (Throwable $e) {
-  // Silently fail - user just won't see admin link
+// Use your existing config (must start session, create $pdo, csrf_token(), csrf_check())
+include_once '../database/config.php';
+
+// require login
+// require login
+if (empty($_SESSION['user'])) {
+  header('Location: ../Forms/login.php');
+  exit;
 }
 
-if (!isset($_SESSION['csrf'])) {
-  $_SESSION['csrf'] = bin2hex(random_bytes(16));
+// require admin
+if ((int)($_SESSION['user']['is_admin'] ?? 0) !== 1) {
+  http_response_code(403);
+  echo "Access denied — Admins only.";
+  exit;
 }
-$csrf = $_SESSION['csrf'];
 
-try {
-  $db = get_db();
-  ensure_users_table($db);
-  
-
-} catch (Throwable $e) {
-  http_response_code(500);
-  die('Database error: ' . htmlspecialchars($e->getMessage()));
-}
+// CSRF for this page
+$csrf = csrf_token();
 ?>
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BinGo — Admin Dashboard</title>
+<meta name="csrf" content="<?= htmlspecialchars($csrf, ENT_QUOTES); ?>">
+<!-- your styles from before ... -->
+</head>
+<body>
+<!-- your HTML dashboard content here (what you already had) -->
+
+</body>
+</html>
+
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
@@ -370,7 +379,7 @@ try {
               <th>Title</th>
               <th>Material</th>
               <th>Weight</th>
-              <th>Location</th>
+              <th>Location</</th>
               <th>Reported</th>
               <th>Status</th>
               <th>Actions</th>
@@ -462,7 +471,7 @@ try {
 
       pendingBody.innerHTML = pending.map(marker => {
         const material = marker.material || '—';
-        const weight = marker.kg ? `${marker.kg.toFixed(1)} kg` : '—';
+        const weight = marker.kg ? `${Number(marker.kg).toFixed(1)} kg` : '—';
         const location = marker.location || '—';
         const statusClass = `status-pill status-${marker.status || 'pending'}`;
         const created = formatDate(marker.createdAt);
@@ -560,7 +569,6 @@ try {
         if (!res.ok || !data.ok) {
           throw new Error(data.message || data.error || 'Failed to update marker');
         }
-        // refresh state to keep tables in sync
         await loadState();
       } catch (err) {
         console.error(err);
